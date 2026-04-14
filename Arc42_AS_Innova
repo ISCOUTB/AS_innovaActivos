@@ -96,6 +96,27 @@ InnovaActivos digitaliza todo ese proceso desde el celular o el computador.
 
 ---
 
+## 1.4 Estado Actual del Proyecto (Corte Abril 2026)
+
+### Artefactos disponibles
+
+- Diagrama UML (clases y relaciones): `Asset Management Lifecycle-2026-03-22-210039.svg`
+- Diagrama entidad-relacion: `Active Asset Management-2026-03-22-210133.svg`
+- Esquema de base de datos: `fixtrack_schema_v2.sql`
+
+### Avance real reportado
+
+| Componente | Estado | Detalle |
+|------------|--------|---------|
+| Base de datos | Listo | Modelo en PostgreSQL con tablas, restricciones, indices, funciones y triggers |
+| Diagramas UML/ER | Listo | Los diagramas reflejan entidades principales y relaciones del dominio |
+| Interfaz Flutter responsive | Listo (UI) | Vista adaptada para celular y PC |
+| Registro e inicio de sesion | Listo (UI) | Panel de registro/login con condicionales para flujo realista de acceso |
+| Modulo InnovaActivos y Traslados | En diseno funcional | Aun no se reporta implementacion end-to-end conectada a backend productivo |
+| Roles en app | Parcial | Actualmente se trabaja con perfiles `admin` y `usuario` en interfaz |
+
+---
+
 # 2. Restricciones de la Arquitectura
 
 ### Restricciones Técnicas
@@ -264,8 +285,8 @@ El sistema se construye en **3 capas** bien definidas:
 │  ┌───────────────────────▼───────────────────────────┐   │
 │  │              POSTGRESQL (Base de Datos)           │   │
 │  │                                                   │   │
-│  │  activos | traslados | usuarios | movimientos     │   │
-│  │  ubicaciones | categorias | inventarios           │   │
+│  │  activos | traslados | usuarios | movimientos_activos │   │
+│  │  ubicaciones | categorias_activos | inventarios       │   │
 │  └───────────────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -276,30 +297,35 @@ independiente en su área sin afectar el trabajo de los demás.
 
 ## 5.2 Módulos del Frontend (Flutter)
 
-### Caja Negra 1: Módulo de Autenticación
-**Responsabilidad:** Login, cierre de sesión y manejo del token JWT.
-**Pantallas:** Login, recuperar contraseña.
+### Estado actual implementado en interfaz
+
+### Caja Negra 1: Módulo de Autenticación y Registro
+**Responsabilidad:** Registro de cuenta, inicio de sesión y acceso a la app por perfil.
+**Pantallas:** Registro, login y validaciones condicionales de acceso.
 **Desarrollado por:** Jhouran Del Toro
 
 ### Caja Negra 2: Módulo de Activos
-**Responsabilidad:** Registrar, ver, editar y dar de baja activos. Escanear QR.
-**Pantallas:** Lista de activos, detalle de activo, formulario de registro, escáner QR.
+**Responsabilidad:** Visualizar activos disponibles y gestionar acciones según perfil.
+**Pantallas:** Lista de activos y acciones de editar/actualizar/eliminar para administrador.
 **Desarrollado por:** Jhouran Del Toro
 
-### Caja Negra 3: Módulo de Traslados
-**Responsabilidad:** Solicitar, aprobar y confirmar traslados de activos.
-**Pantallas:** Lista de traslados, formulario de solicitud, pantalla de aprobación.
+### Caja Negra 3: Módulo de Envíos / Traslados
+**Responsabilidad:** Mostrar el flujo de traslados de activos entre ubicaciones según tipo/clase.
+**Pantallas:** Vista de envíos/traslados.
 **Desarrollado por:** Jhouran Del Toro
 
-### Caja Negra 4: Módulo de Inventario
-**Responsabilidad:** Tomar inventario físico escaneando activos con la cámara.
-**Pantallas:** Iniciar sesión de inventario, escaneo continuo, reporte de resultados.
+### Caja Negra 4: Módulo de Bodega
+**Responsabilidad:** Clasificación de activos dentro del inventario.
+**Pantallas:** Vista de bodega con clasificación general.
 **Desarrollado por:** Jhouran Del Toro
 
-### Caja Negra 5: Módulo de Reportes y Dashboard
-**Responsabilidad:** Mostrar resumen del inventario y exportar reportes en PDF.
-**Pantallas:** Dashboard con estadísticas, vista de reportes.
+### Caja Negra 5: Módulo de Perfil de Usuario
+**Responsabilidad:** Consultar y editar datos del usuario en tiempo real.
+**Pantallas:** Perfil con datos de registro y cantidad de activos asociados al usuario.
 **Desarrollado por:** Jhouran Del Toro
+
+### Nota de estado
+Los módulos de inventario avanzado, reportes y automatizaciones permanecen como parte del diseño objetivo y no se reportan como cerrados end-to-end en esta iteración.
 
 ## 5.3 Endpoints del Backend (FastAPI)
 
@@ -352,14 +378,18 @@ independiente en su área sin afectar el trabajo de los demás.
 
 | Tabla                 | Descripción                                                   |
 |-----------------------|---------------------------------------------------------------|
-| `usuarios`            | Almacena nombre, email, contraseña cifrada y rol del usuario  |
-| `activos`             | Código, nombre, categoría, estado, ubicación y foto           |
-| `categorias`          | Tipos de activos (PC, silla, impresora, vehículo, etc.)       |
-| `ubicaciones`         | Áreas o departamentos de la organización                      |
-| `traslados`           | Activo, origen, destino, estado, fechas y quién aprobó        |
-| `movimientos`         | Historial inmutable de cada cambio registrado en un activo    |
-| `sesiones_inventario` | Sesiones de toma de inventario por área y fecha               |
-| `items_inventario`    | Activos escaneados dentro de cada sesión de inventario        |
+| `departamentos`       | Catálogo de áreas/departamentos de la organización            |
+| `usuarios`            | Usuarios, credenciales cifradas y rol                         |
+| `ubicaciones`         | Estructura física (edificio/piso/jerarquía)                   |
+| `categorias_activos`  | Clasificación y configuración de depreciación/mantenimiento    |
+| `activos`             | Registro maestro de activos y su estado actual                |
+| `traslados`           | Flujo de traslado de activos entre ubicaciones                |
+| `movimientos_activos` | Historial inmutable de cambios sobre activos                  |
+| `sesiones_inventario` | Sesiones de inventario físico                                 |
+| `items_inventario`    | Detalle de escaneos por sesión                                |
+| `notificaciones`      | Notificaciones para usuarios                                  |
+
+Modelo completo en: `fixtrack_schema_v2.sql`
 
 **Diseñado por:** Nilson David Rivera
 
@@ -472,7 +502,7 @@ Técnico     Flutter (sin internet)   Memoria local    [Vuelve internet]   FastA
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │   Firebase Storage (fotos)  │  Gmail SMTP (correos)     │    │
 │  └─────────────────────────────────────────────────────────┘    │
-└───────────────���─────────────────────────────────────────────────┘
+└───────────────   ─────────────────────────────────────────────────┘
 ```
 
 ## 7.2 Nivel 2 – Opciones de Despliegue
@@ -513,7 +543,7 @@ Los errores siguen este formato estándar en toda la API:
 ## Concepto 3: Historial Inmutable de Movimientos
 
 - Cada vez que un activo cambia de ubicación, estado o responsable,
-  FastAPI **inserta** un registro nuevo en la tabla `movimientos`
+  FastAPI **inserta** un registro nuevo en la tabla `movimientos_activos`
 - Esa tabla **nunca se modifica ni se elimina**, solo se pueden insertar registros
 - Esto garantiza que siempre se pueda consultar el historial completo de cualquier activo
 
@@ -525,13 +555,11 @@ Los errores siguen este formato estándar en toda la API:
 
 ## Concepto 5: Roles y Permisos
 
-| Rol             | Permisos                                                      |
-|-----------------|---------------------------------------------------------------|
-| Administrador   | Acceso completo a todo el sistema                             |
-| Supervisor      | Puede aprobar o rechazar traslados                            |
-| Técnico         | Puede escanear activos y tomar inventario                     |
-| Empleado        | Puede ver sus activos y solicitar traslados                   |
-| Auditor         | Solo puede consultar historial y descargar reportes           |
+| Rol / Perfil                                | Estado en esta iteración      | Permisos                                                       |
+|---------------------------------------------|-------------------------------|----------------------------------------------------------------|
+| Administrador (`admin`)                     | Implementado en interfaz      | Gestión de activos y edición avanzada (incluye eliminar)       |
+| Usuario (`usuario`)                         | Implementado en interfaz      | Consulta y actualización de datos propios, vistas de operación |
+| `SUPERADMIN`, `AUDITOR`, `CUSTODIO`, `TECNICO` | Definido en modelo de datos   | Pendiente implementación funcional completa en app             |
 
 ---
 
