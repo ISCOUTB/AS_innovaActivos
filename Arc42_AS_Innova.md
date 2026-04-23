@@ -102,18 +102,27 @@ InnovaActivos digitaliza todo ese proceso desde el celular o el computador.
 
 - Diagrama UML (clases y relaciones): `Asset Management Lifecycle-2026-03-22-210039.svg`
 - Diagrama entidad-relacion: `Active Asset Management-2026-03-22-210133.svg`
-- Esquema de base de datos: `fixtrack_schema_v2.sql`
+- Esquema de base de datos: `innova-activos.v2.sql`
+- **API Backend completa**: `app/` (FastAPI, 16 routers, 20+ modelos ORM)
 
 ### Avance real reportado
 
 | Componente | Estado | Detalle |
 |------------|--------|---------|
-| Base de datos | Listo | Modelo en PostgreSQL con tablas, restricciones, indices, funciones y triggers |
-| Diagramas UML/ER | Listo | Los diagramas reflejan entidades principales y relaciones del dominio |
-| Interfaz Flutter responsive | Listo (UI) | Vista adaptada para celular y PC |
-| Registro e inicio de sesion | Listo (UI) | Panel de registro/login con condicionales para flujo realista de acceso |
-| Modulo InnovaActivos y Traslados | En diseno funcional | Aun no se reporta implementacion end-to-end conectada a backend productivo |
-| Roles en app | Parcial | Actualmente se trabaja con perfiles `admin` y `usuario` en interfaz |
+| Base de datos | ✅ Listo | Modelo en PostgreSQL con tablas, restricciones, indices, funciones y triggers |
+| Diagramas UML/ER | ✅ Listo | Los diagramas reflejan entidades principales y relaciones del dominio |
+| Interfaz Flutter responsive | ✅ Listo (UI) | Vista adaptada para celular y PC |
+| Registro e inicio de sesion | ✅ Listo (UI) | Panel de registro/login con condicionales para flujo realista de acceso |
+| **API Backend (FastAPI)** | ✅ **Listo** | **16 routers, 20+ modelos ORM, JWT auth, RBAC, CRUD completo para todas las entidades** |
+| **Modulo Autenticación** | ✅ **Listo** | **Register, login, refresh token, logout, perfil (JWT + bcrypt)** |
+| **Modulo Activos** | ✅ **Listo** | **CRUD completo, escaneo QR/barras/RFID, cambio de estado, asignación, historial** |
+| **Modulo Traslados** | ✅ **Listo** | **Flujo completo: crear → aprobar/rechazar → en_transito → confirmar/cancelar** |
+| **Modulo Inventario** | ✅ **Listo** | **Sesiones, escaneo con clasificación automática, cierre con totales** |
+| **Modulo Sincronización** | ✅ **Listo** | **Cola offline, push de lotes, resolución de conflictos** |
+| **Modulo Mantenimiento** | ✅ **Listo** | **Planes y órdenes de mantenimiento con prioridades** |
+| **Modulo Notificaciones** | ✅ **Listo** | **CRUD, marcar leída, marcar todas leídas** |
+| **Modulo Reportes** | ✅ **Listo** | **Solicitud y seguimiento de exportaciones** |
+| **Roles en API** | ✅ **Listo** | **SUPERADMIN, ADMIN, AUDITOR, CUSTODIO, TECNICO con RBAC completo** |
 
 ---
 
@@ -327,69 +336,183 @@ independiente en su área sin afectar el trabajo de los demás.
 ### Nota de estado
 Los módulos de inventario avanzado, reportes y automatizaciones permanecen como parte del diseño objetivo y no se reportan como cerrados end-to-end en esta iteración.
 
-## 5.3 Endpoints del Backend (FastAPI)
+## 5.3 Endpoints del Backend (FastAPI) – ✅ IMPLEMENTADOS
 
-### Caja Negra 6: Autenticación
-| Endpoint         | Método | Descripción                             |
-|------------------|--------|-----------------------------------------|
-| `/auth/login`    | POST   | Recibe usuario y contraseña, devuelve JWT|
-| `/auth/logout`   | POST   | Invalida la sesión del usuario          |
+**Estructura del backend:** `app/` con 16 routers, 20+ modelos ORM, schemas Pydantic, servicios de negocio y utilidades core.
+**Documentación automática:** Swagger UI en `/docs` y ReDoc en `/redoc`.
 
-**Desarrollado por:** Jose Chima
+### Caja Negra 6: Autenticación (`app/routers/auth.py`)
+| Endpoint           | Método | Descripción                                   | Acceso     |
+|--------------------|--------|-----------------------------------------------|------------|
+| `/auth/register`   | POST   | Registra un nuevo usuario                     | Público    |
+| `/auth/login`      | POST   | Recibe correo y contraseña, devuelve JWT pair | Público    |
+| `/auth/refresh`    | POST   | Renueva el access token con refresh token     | Autenticado|
+| `/auth/logout`     | POST   | Revoca sesiones de refresh del usuario        | Autenticado|
+| `/auth/me`         | GET    | Retorna perfil del usuario autenticado        | Autenticado|
 
-### Caja Negra 7: Activos
-| Endpoint                     | Método | Descripción                         |
-|------------------------------|--------|-------------------------------------|
-| `/activos`                   | GET    | Lista todos los activos             |
-| `/activos`                   | POST   | Registra un nuevo activo            |
-| `/activos/{id}`              | GET    | Obtiene el detalle de un activo     |
-| `/activos/{id}`              | PUT    | Actualiza los datos de un activo    |
-| `/activos/{id}`              | DELETE | Da de baja un activo                |
-| `/activos/escanear/{codigo}` | GET    | Busca un activo por su código QR    |
+### Caja Negra 7: Departamentos (`app/routers/departamentos.py`)
+| Endpoint               | Método | Descripción              | Acceso  |
+|------------------------|--------|--------------------------|--------|
+| `/departamentos`       | GET    | Lista todos              | Auth   |
+| `/departamentos`       | POST   | Crear departamento       | ADMIN+ |
+| `/departamentos/{id}`  | GET    | Detalle                  | Auth   |
+| `/departamentos/{id}`  | PUT    | Actualizar               | ADMIN+ |
+| `/departamentos/{id}`  | DELETE | Desactivar (soft-delete) | ADMIN+ |
 
-**Desarrollado por:** Jose Chima
+### Caja Negra 8: Usuarios (`app/routers/usuarios.py`)
+| Endpoint                  | Método | Descripción             | Acceso      |
+|---------------------------|--------|-------------------------|------------|
+| `/usuarios`               | GET    | Listar (filtros, paginación) | ADMIN+ |
+| `/usuarios/{id}`          | GET    | Detalle                 | ADMIN+ o propio |
+| `/usuarios/{id}`          | PUT    | Actualizar perfil       | ADMIN+ o propio |
+| `/usuarios/{id}/rol`      | PATCH  | Cambiar rol             | SUPERADMIN |
+| `/usuarios/{id}/estado`   | PATCH  | Activar/desactivar      | ADMIN+     |
 
-### Caja Negra 8: Traslados
-| Endpoint                        | Método | Descripción                            |
-|---------------------------------|--------|----------------------------------------|
-| `/traslados`                    | GET    | Lista todos los traslados              |
-| `/traslados`                    | POST   | Crea una solicitud de traslado         |
-| `/traslados/{id}`               | GET    | Obtiene el detalle de un traslado      |
-| `/traslados/{id}/aprobar`       | PUT    | Aprueba un traslado pendiente          |
-| `/traslados/{id}/rechazar`      | PUT    | Rechaza un traslado pendiente          |
-| `/traslados/{id}/confirmar`     | PUT    | Confirma que el activo fue recibido    |
+### Caja Negra 9: Ubicaciones (`app/routers/ubicaciones.py`)
+| Endpoint               | Método | Descripción              | Acceso |
+|------------------------|--------|--------------------------|-------|
+| `/ubicaciones`         | GET    | Lista plana              | Auth  |
+| `/ubicaciones/arbol`   | GET    | Árbol jerárquico         | Auth  |
+| `/ubicaciones`         | POST   | Crear ubicación          | ADMIN+|
+| `/ubicaciones/{id}`    | GET    | Detalle                  | Auth  |
+| `/ubicaciones/{id}`    | PUT    | Actualizar               | ADMIN+|
+| `/ubicaciones/{id}`    | DELETE | Soft-delete              | ADMIN+|
 
-**Desarrollado por:** Jose Chima
+### Caja Negra 10: Categorías (`app/routers/categorias.py`)
+| Endpoint             | Método | Descripción        | Acceso |
+|----------------------|--------|--------------------|-------|
+| `/categorias`        | GET    | Lista plana        | Auth  |
+| `/categorias/arbol`  | GET    | Árbol jerárquico   | Auth  |
+| `/categorias`        | POST   | Crear categoría    | ADMIN+|
+| `/categorias/{id}`   | GET    | Detalle            | Auth  |
+| `/categorias/{id}`   | PUT    | Actualizar         | ADMIN+|
 
-### Caja Negra 9: Inventario
-| Endpoint                            | Método | Descripción                           |
-|-------------------------------------|--------|---------------------------------------|
-| `/inventario/sesiones`              | GET    | Lista todas las sesiones de inventario|
-| `/inventario/sesiones`              | POST   | Inicia una nueva sesión               |
-| `/inventario/sesiones/{id}/scan`    | POST   | Registra un escaneo en la sesión      |
-| `/inventario/sesiones/{id}/cerrar`  | PUT    | Cierra y finaliza la sesión           |
-| `/inventario/sesiones/{id}/reporte` | GET    | Genera el reporte de la sesión        |
+### Caja Negra 11: Activos (`app/routers/activos.py`)
+| Endpoint                     | Método | Descripción                              | Acceso |
+|------------------------------|--------|------------------------------------------|-------|
+| `/activos`                   | GET    | Lista paginada con filtros               | Auth  |
+| `/activos`                   | POST   | Registra nuevo activo + movimiento       | ADMIN+|
+| `/activos/escanear/{codigo}` | GET    | Busca por QR/barras/RFID                 | Auth  |
+| `/activos/{id}`              | GET    | Detalle completo                         | Auth  |
+| `/activos/{id}`              | PUT    | Actualizar datos + movimiento            | ADMIN+|
+| `/activos/{id}`              | DELETE | Soft-delete (marca eliminado_en)         | ADMIN+|
+| `/activos/{id}/estado`       | PATCH  | Cambiar estado + movimiento              | ADMIN+|
+| `/activos/{id}/asignar`      | PATCH  | Reasignar a usuario + movimiento         | ADMIN+|
+| `/activos/{id}/historial`    | GET    | Historial de movimientos del activo      | Auth  |
 
-**Desarrollado por:** Jose Chima
+### Caja Negra 12: Documentos (`app/routers/documentos.py`)
+| Endpoint                                 | Método | Descripción      | Acceso |
+|------------------------------------------|--------|------------------|-------|
+| `/activos/{activo_id}/documentos`        | GET    | Listar documentos| Auth  |
+| `/activos/{activo_id}/documentos`        | POST   | Subir documento  | ADMIN+|
+| `/activos/{activo_id}/documentos/{id}`   | DELETE | Eliminar         | ADMIN+|
+
+### Caja Negra 13: Traslados (`app/routers/traslados.py`)
+| Endpoint                        | Método | Descripción                            | Acceso |
+|---------------------------------|--------|----------------------------------------|-------|
+| `/traslados`                    | GET    | Lista (filtros por estado, paginación) | Auth  |
+| `/traslados`                    | POST   | Crea solicitud de traslado             | Auth  |
+| `/traslados/{id}`               | GET    | Detalle                                | Auth  |
+| `/traslados/{id}/aprobar`       | PUT    | Aprueba traslado pendiente             | ADMIN+|
+| `/traslados/{id}/rechazar`      | PUT    | Rechaza con motivo                     | ADMIN+|
+| `/traslados/{id}/en-transito`   | PUT    | Marca en tránsito                      | ADMIN+|
+| `/traslados/{id}/confirmar`     | PUT    | Confirma recepción (trigger DB)        | Auth  |
+| `/traslados/{id}/cancelar`      | PUT    | Cancela traslado                       | Auth  |
+
+### Caja Negra 14: Movimientos (`app/routers/movimientos.py`) – Solo lectura
+| Endpoint                 | Método | Descripción                  | Acceso |
+|--------------------------|--------|------------------------------|-------|
+| `/movimientos`           | GET    | Lista paginada con filtros   | Auth  |
+| `/movimientos/{activo_id}`| GET   | Historial de un activo       | Auth  |
+
+### Caja Negra 15: Inventario (`app/routers/inventario.py`)
+| Endpoint                            | Método | Descripción                            | Acceso   |
+|-------------------------------------|--------|----------------------------------------|---------|
+| `/inventario/sesiones`              | GET    | Lista sesiones                         | Auth    |
+| `/inventario/sesiones`              | POST   | Inicia sesión (calcula total esperado) | TECNICO+|
+| `/inventario/sesiones/{id}`         | GET    | Detalle con items                      | Auth    |
+| `/inventario/sesiones/{id}/scan`    | POST   | Registra escaneo con clasificación auto| TECNICO+|
+| `/inventario/sesiones/{id}/cerrar`  | PUT    | Cierra sesión y calcula faltantes      | TECNICO+|
+| `/inventario/sesiones/{id}/reporte` | GET    | Reporte de la sesión                   | Auth    |
+
+### Caja Negra 16: Sincronización Offline (`app/routers/sincronizacion.py`)
+| Endpoint                               | Método | Descripción               | Acceso |
+|----------------------------------------|--------|---------------------------|-------|
+| `/sincronizacion/push`                 | POST   | Envía lote desde dispositivo| Auth |
+| `/sincronizacion/conflictos`           | GET    | Lista conflictos pendientes| ADMIN+|
+| `/sincronizacion/conflictos/{id}/resolver`| PUT | Resuelve conflicto        | ADMIN+|
+
+### Caja Negra 17: Notificaciones (`app/routers/notificaciones.py`)
+| Endpoint                       | Método | Descripción         | Acceso |
+|--------------------------------|--------|---------------------|-------|
+| `/notificaciones`              | GET    | Listar (filtro no leídas)| Auth|
+| `/notificaciones`              | POST   | Crear notificación  | ADMIN+|
+| `/notificaciones/{id}/leer`    | PUT    | Marcar como leída   | Auth  |
+| `/notificaciones/leer-todas`   | PUT    | Marcar todas leídas | Auth  |
+
+### Caja Negra 18: Reportes (`app/routers/reportes.py`)
+| Endpoint          | Método | Descripción              | Acceso |
+|-------------------|--------|--------------------------|-------|
+| `/reportes`       | GET    | Listar mis reportes      | Auth  |
+| `/reportes`       | POST   | Solicitar exportación    | Auth  |
+| `/reportes/{id}`  | GET    | Estado del reporte       | Auth  |
+
+### Caja Negra 19: Integraciones (`app/routers/integraciones.py`)
+| Endpoint              | Método | Descripción          | Acceso |
+|-----------------------|--------|----------------------|-------|
+| `/integraciones`      | GET    | Listar trabajos      | ADMIN+|
+| `/integraciones`      | POST   | Crear trabajo        | ADMIN+|
+| `/integraciones/{id}` | GET    | Detalle              | ADMIN+|
+
+### Caja Negra 20: Mantenimiento (`app/routers/mantenimiento.py`)
+| Endpoint                     | Método | Descripción           | Acceso   |
+|------------------------------|--------|-----------------------|---------|
+| `/mantenimiento/planes`      | GET    | Listar planes         | Auth    |
+| `/mantenimiento/planes`      | POST   | Crear plan            | ADMIN+  |
+| `/mantenimiento/planes/{id}` | PUT    | Actualizar plan       | ADMIN+  |
+| `/mantenimiento/ordenes`     | GET    | Listar órdenes        | Auth    |
+| `/mantenimiento/ordenes`     | POST   | Crear orden           | TECNICO+|
+| `/mantenimiento/ordenes/{id}`| GET    | Detalle orden         | Auth    |
+| `/mantenimiento/ordenes/{id}`| PUT    | Actualizar orden      | TECNICO+|
+
+### Caja Negra 21: Predicciones IA (`app/routers/predicciones.py`)
+| Endpoint            | Método | Descripción          | Acceso |
+|---------------------|--------|----------------------|-------|
+| `/predicciones`     | GET    | Listar predicciones  | Auth  |
+| `/predicciones`     | POST   | Registrar predicción | ADMIN+|
+| `/predicciones/{id}`| GET    | Detalle              | Auth  |
 
 ## 5.4 Tablas de la Base de Datos (PostgreSQL)
 
-### Caja Negra 10: Base de Datos
+### Caja Negra 22: Base de Datos
 
-| Tabla                 | Descripción                                                   |
-|-----------------------|---------------------------------------------------------------|
-| `departamentos`       | Catálogo de áreas/departamentos de la organización            |
-| `usuarios`            | Usuarios, credenciales cifradas y rol                         |
-| `ubicaciones`         | Estructura física (edificio/piso/jerarquía)                   |
-| `categorias_activos`  | Clasificación y configuración de depreciación/mantenimiento    |
-| `activos`             | Registro maestro de activos y su estado actual                |
-| `traslados`           | Flujo de traslado de activos entre ubicaciones                |
-| `movimientos_activos` | Historial inmutable de cambios sobre activos                  |
-| `sesiones_inventario` | Sesiones de inventario físico                                 |
-| `items_inventario`    | Detalle de escaneos por sesión                                |
-| `notificaciones`      | Notificaciones para usuarios                                  |
+| Tabla                        | Descripción                                                   | Modelo ORM                       |
+|------------------------------|---------------------------------------------------------------|----------------------------------|
+| `departamentos`              | Catálogo de áreas/departamentos de la organización            | `app/models/departamento.py`     |
+| `usuarios`                   | Usuarios, credenciales cifradas y rol                         | `app/models/usuario.py`          |
+| `ubicaciones`                | Estructura física (edificio/piso/jerarquía)                   | `app/models/ubicacion.py`        |
+| `categorias_activos`         | Clasificación y configuración de depreciación/mantenimiento   | `app/models/categoria_activo.py` |
+| `activos`                    | Registro maestro de activos y su estado actual                | `app/models/activo.py`           |
+| `documentos_activos`         | Documentos adjuntos (facturas, garantías, fotos)              | `app/models/documento_activo.py` |
+| `traslados`                  | Flujo de traslado de activos entre ubicaciones                | `app/models/traslado.py`         |
+| `movimientos_activos`        | Historial inmutable de cambios sobre activos                  | `app/models/movimiento_activo.py`|
+| `sesiones_inventario`        | Sesiones de inventario físico                                 | `app/models/sesion_inventario.py`|
+| `items_inventario`           | Detalle de escaneos por sesión                                | `app/models/item_inventario.py`  |
+| `cola_sincronizacion`        | Cola de operaciones offline pendientes                        | `app/models/cola_sincronizacion.py`|
+| `conflictos_sincronizacion`  | Conflictos detectados entre cliente y servidor                | `app/models/conflicto_sincronizacion.py`|
+| `sesiones_autenticacion`     | Sesiones JWT de refresh token                                 | `app/models/sesion_autenticacion.py`|
+| `notificaciones`             | Notificaciones para usuarios                                  | `app/models/notificacion.py`     |
+| `entregas_notificacion`      | Seguimiento de entregas por canal                             | `app/models/entrega_notificacion.py`|
+| `exportaciones_reportes`     | Solicitudes de exportación de reportes                        | `app/models/exportacion_reporte.py`|
+| `trabajos_integracion`       | Trabajos de integración ERP (SAP/Odoo)                        | `app/models/trabajo_integracion.py`|
+| `planes_mantenimiento`       | Planes de mantenimiento preventivo por activo                 | `app/models/plan_mantenimiento.py`|
+| `ordenes_mantenimiento`      | Órdenes de trabajo de mantenimiento                           | `app/models/orden_mantenimiento.py`|
+| `predicciones_ia`            | Predicciones de modelos ML sobre activos                      | `app/models/prediccion_ia.py`    |
 
-Modelo completo en: `fixtrack_schema_v2.sql`
+### Diagrama Entidad-Relación
+![Diagrama Entidad-Relación](Active%20Asset%20Management-2026-03-22-210133.svg)
+
+Modelo completo en: `innova-activos.v2.sql`
 
 **Diseñado por:** Nilson David Rivera
 
@@ -502,7 +625,7 @@ Técnico     Flutter (sin internet)   Memoria local    [Vuelve internet]   FastA
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │   Firebase Storage (fotos)  │  Gmail SMTP (correos)     │    │
 │  └─────────────────────────────────────────────────────────┘    │
-└───────────────   ─────────────────────────────────────────────────┘
+└───────────────���─────────────────────────────────────────────────┘
 ```
 
 ## 7.2 Nivel 2 – Opciones de Despliegue
@@ -553,13 +676,17 @@ Los errores siguen este formato estándar en toda la API:
 - Cuando vuelve la conexión, la app envía automáticamente los datos guardados a la API
 - El usuario ve un indicador visual: **"Sin conexión – guardando localmente"**
 
-## Concepto 5: Roles y Permisos
+## Concepto 5: Roles y Permisos – ✅ IMPLEMENTADO EN API
 
-| Rol / Perfil                                | Estado en esta iteración      | Permisos                                                       |
-|---------------------------------------------|-------------------------------|----------------------------------------------------------------|
-| Administrador (`admin`)                     | Implementado en interfaz      | Gestión de activos y edición avanzada (incluye eliminar)       |
-| Usuario (`usuario`)                         | Implementado en interfaz      | Consulta y actualización de datos propios, vistas de operación |
-| `SUPERADMIN`, `AUDITOR`, `CUSTODIO`, `TECNICO` | Definido en modelo de datos   | Pendiente implementación funcional completa en app             |
+| Rol           | Estado              | Permisos en API                                                                    |
+|---------------|---------------------|----------------------------------------------------------------------------------|
+| `SUPERADMIN`  | ✅ Implementado     | Acceso total, cambiar roles de usuarios, gestión completa                        |
+| `ADMIN`       | ✅ Implementado     | CRUD de activos, ubicaciones, categorías, aprobar traslados, gestión de usuarios |
+| `AUDITOR`     | ✅ Implementado     | Lectura de movimientos, reportes, historial de activos                           |
+| `CUSTODIO`    | ✅ Implementado     | Consultar activos asignados, solicitar traslados, ver notificaciones             |
+| `TECNICO`     | ✅ Implementado     | Inventario físico (escaneo), mantenimiento (órdenes), consultas                  |
+
+**Implementación técnica:** `app/core/dependencies.py` con `RoleChecker` reutilizable y atajos `require_admin`, `require_superadmin`, `require_tecnico`, `require_auditor`.
 
 ---
 
@@ -631,13 +758,16 @@ Calidad InnovaActivos
 
 ## Deuda Técnica (funcionalidades para versiones futuras)
 
-| Funcionalidad                            | ¿Por qué se deja para después?                         |
-|------------------------------------------|--------------------------------------------------------|
-| Exportación de reportes a Excel          | Requiere tiempo extra; primero el núcleo funcional     |
-| Notificaciones push en el celular        | Requiere configuración adicional de Firebase           |
-| Integración con sistemas ERP (SAP/Odoo)  | Alta complejidad; fuera del alcance académico          |
-| Soporte para lectores RFID               | Requiere hardware especial no disponible en el equipo  |
-| Dashboard con gráficas avanzadas         | Se implementará cuando los módulos base estén listos   |
+| Funcionalidad                            | Estado                    | Nota                                                     |
+|------------------------------------------|---------------------------|----------------------------------------------------------|
+| ~~Exportación de reportes~~              | ✅ Endpoint listo         | Falta implementar generación real de PDF/XLSX/CSV        |
+| ~~Integración con sistemas ERP~~         | ✅ Endpoint listo         | Falta conectar con SAP/Odoo reales                       |
+| ~~Mantenimiento preventivo~~             | ✅ Endpoint listo         | Planes y órdenes funcionales                             |
+| ~~Predicciones IA~~                      | ✅ Endpoint listo         | Falta conectar con modelos ML reales                     |
+| Notificaciones push en el celular        | Pendiente                 | Requiere configuración adicional de Firebase             |
+| Soporte para lectores RFID               | Parcial (campo en modelo) | Requiere hardware especial no disponible en el equipo    |
+| Dashboard con gráficas avanzadas         | Pendiente                 | Se implementará en el frontend Flutter                   |
+| Envío real de correos SMTP               | Pendiente                 | El endpoint de notificaciones existe, falta integrar SMTP|
 
 ---
 
